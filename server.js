@@ -1,6 +1,7 @@
 const express = require('express');
 const bodyParser = require('body-parser');
 const sqlite3 = require('sqlite3').verbose();
+const mysql = require('mysql2')
 const path = require('path');
 const session = require('express-session');
 
@@ -15,12 +16,18 @@ app.use(session({
   saveUninitialized: true
 }));
 
-// Connect to SQLite database
-const db = new sqlite3.Database('../sqllite/secret_santa.db', (err) => {
+const db = mysql.createConnection({
+  host: 'https://p3plzcpnl505317.prod.phx3.secureserver.net:2083/cpsess6158946432/3rdparty/phpMyAdmin/index.php?route=/', // This could be 'localhost' or a specific hostname like 'db1234.hosting-data.io'
+  user: 'mdilts', // The database username you use to log in
+  password: 'U!(o!4HQi8YZ', // The password for your database user
+  database: 'namesfromthehat' // The name of your database
+});
+
+db.connect((err) => {
   if (err) {
     console.error('Could not connect to database', err);
   } else {
-    console.log('Connected to SQLite database');
+    console.log('Connected to MySQL database');
   }
 });
 
