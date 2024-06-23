@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>User Management</title>
+    <style>
+        .user-container {
+            margin-bottom: 20px;
+            border: 1px solid #ccc;
+            padding: 10px;
+        }
+        .banned-users, .banned-list-users {
+            margin-top: 10px;
+        }
+        .banned-users ul, .banned-list-users ul {
+            list-style-type: none;
+            padding: 0;
+        }
+        .banned-users li, .banned-list-users li {
+            display: flex;
+            align-items: center;
+            margin-bottom: 5px;
+        }
+        .banned-users button, .banned-list-users button {
+            margin-left: 10px;
+        }
+    </style>
+</head>
+<body>
+    <h1>User Management</h1>
+    <div id="user-list"></div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', async () => {
+            const userList = document.getElementById('user-list');
+            const usersResponse = await fetch('/users');
+            const users = await usersResponse.json();
+            const eventsResponse = await fetch('/events');
+            const events = await eventsResponse.json();
+
+            users.forEach(user => {
+                const userContainer = document.createElement('div');
+                userContainer.classList.add('user-container');
+
+                const userTitle = document.createElement('h2');
+                userTitle.textContent = user.username;
+
+                const selectBannedUser = document.createElement('select');
+                selectBannedUser.id = `select-${user.id}`;
+
+                const option = document.createElement('option');
+                option.value = '';
+                option.textContent = 'Select a user to ban';
+                selectBannedUser.appendChild(option);
+
+                users.forEach(otherUser => {
+                    if (otherUser.id !== user.id) {
+                        const option = document.createElement('option');
+                        option.value = otherUser.id;
+                        option.textContent = otherUser.username;
+                        selectBannedUser.appendChild(option);
+                    }
+                });
+
+                const addButton = document.createElement('button');
+                addButton.textContent = 'Add General Banned User';
+                addButton.onclick = async () => {
+                    const bannedUserId = selectBannedUser.value;
+                    if (bannedUserId) {
+                        const response = await fetch('/add-banned-user', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ userId: user.id, bannedUserId: parseInt(bannedUserId) })
+                        });
+
+                        if (response.ok) {
+                            await loadBannedUsers(user.id, userContainer);
+                        } else {
+                            alert('Failed to add banned user');
+                        }
+                    }
+                };
+
+                const eventSelect = document.createElement('select');
+                eventSelect.id = `event-select-${user.id}`;
+                const eventOption = document.createElement('option');
+                eventOption.value = '';
+                eventOption.textContent = 'Select an event';
+                eventSelect.appendChild(eventOption);
+
+                events.forEach(event => {
+                    const option = document.createElement('option');
+                    option.value = event.id;
+                    option.textContent = event.name;
+                    eventSelect.appendChild(option);
+                });
+
+                const listSelect = document.createElement('select');
+                listSelect.id = `list-select-${user.id}`;
+                const listOption = document.createElement('option');
+                listOption.value = '';
+                listOption.textContent = 'Select a list';
+                listSelect.appendChild(listOption);
+
+                eventSelect.onchange = async () => {
+                    const eventId = eventSelect.value;
+                    const listsResponse = await fetch(`/event-rounds/${eventId}`);
+                    const lists = await listsResponse.json();
+
+                    listSelect.innerHTML = '';
+                    const listOption = document.createElement('option');
+                    listOption.value = '';
+                    listOption.textContent = 'Select a list';
+                    listSelect.appendChild(listOption);
+
+                    lists.forEach(list => {
+                        const option = document.createElement('option');
+                        option.value = list.id;
+                        option.textContent = list.name;
+                        listSelect.appendChild(option);
+                    });
+                };
+
+                const addListBannedUserButton = document.createElement('button');
+                addListBannedUserButton.textContent = 'Add List Banned User';
+                addListBannedUserButton.onclick = async () => {
+                    const bannedUserId = selectBannedUser.value;
+                    const listId = listSelect.value;
+                    if (bannedUserId && listId) {
+                        const response = await fetch('/add-list-banned-user', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ userId: user.id, bannedUserId: parseInt(bannedUserId), listId: parseInt(listId) })
+                        });
+
+                        if (response.ok) {
+                            await loadBannedUsers(user.id, userContainer);
+                        } else {
+                            alert('Failed to add list banned user');
+                        }
+                    }
+                };
+
+                userContainer.appendChild(userTitle);
+                userContainer.appendChild(selectBannedUser);
+                userContainer.appendChild(addButton);
+                userContainer.appendChild(document.createElement('br'));
+                userContainer.appendChild(eventSelect);
+                userContainer.appendChild(listSelect);
+                userContainer.appendChild(addListBannedUserButton);
+
+                const bannedUsersContainer = document.createElement('div');
+                bannedUsersContainer.classList.add('banned-users');
+
+                const bannedUsersTitle = document.createElement('h3');
+                bannedUsersTitle.textContent = 'General Banned Users:';
+                bannedUsersContainer.appendChild(bannedUsersTitle);
+
+                const bannedUsersList = document.createElement('ul');
+                bannedUsersContainer.appendChild(bannedUsersList);
+
+                userContainer.appendChild(bannedUsersContainer);
+
+                const bannedListUsersContainer = document.createElement('div');
+                bannedListUsersContainer.classList.add('banned-list-users');
+
+                const bannedListUsersTitle = document.createElement('h3');
+                bannedListUsersTitle.textContent = 'List Banned Users:';
+                bannedListUsersContainer.appendChild(bannedListUsersTitle);
+
+                const bannedListUsersList = document.createElement('ul');
+                bannedListUsersContainer.appendChild(bannedListUsersList);
+
+                userContainer.appendChild(bannedListUsersContainer);
+                userList.appendChild(userContainer);
+
+                loadBannedUsers(user.id, userContainer);
+            });
+        });
+
+        async function loadBannedUsers(userId, userContainer) {
+            const bannedUsersResponse = await fetch(`/banned-users/${userId}`);
+            const bannedUsers = await bannedUsersResponse.json();
+            const bannedUsersList = userContainer.querySelector('.banned-users ul');
+            bannedUsersList.innerHTML = '';
+
+            bannedUsers.forEach(bannedUser => {
+                const listItem = document.createElement('li');
+                listItem.textContent = bannedUser.username;
+
+                const removeButton = document.createElement('button');
+                removeButton.textContent = 'Remove';
+                removeButton.onclick = async () => {
+                    const response = await fetch('/remove-banned-user', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ userId, bannedUserId: bannedUser.id })
+                    });
+
+                    if (response.ok) {
+                        await loadBannedUsers(userId, userContainer);
+                    } else {
+                        alert('Failed to remove banned user');
+                    }
+                };
+
+                listItem.appendChild(removeButton);
+                bannedUsersList.appendChild(listItem);
+            });
+
+            const bannedListUsersResponse = await fetch(`/list-banned-users/${userId}`);
+            const bannedListUsers = await bannedListUsersResponse.json();
+            const bannedListUsersList = userContainer.querySelector('.banned-list-users ul');
+            bannedListUsersList.innerHTML = '';
+
+            bannedListUsers.forEach(bannedListUser => {
+                const listItem = document.createElement('li');
+                listItem.textContent = `${bannedListUser.username} (List: ${bannedListUser.listName})`;
+
+                const removeButton = document.createElement('button');
+                removeButton.textContent = 'Remove';
+                removeButton.onclick = async () => {
+                    const response = await fetch('/remove-list-banned-user', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ userId, bannedUserId: bannedListUser.id, listId: bannedListUser.listId })
+                    });
+
+                    if (response.ok) {
+                        await loadBannedUsers(userId, userContainer);
+                    } else {
+                        alert('Failed to remove list banned user');
+                    }
+                };
+
+                listItem.appendChild(removeButton);
+                bannedListUsersList.appendChild(listItem);
+            });
+        }
+    </script>
+</body>
+</html>

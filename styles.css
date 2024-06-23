@@ -1,0 +1,54 @@
+html, body {
+    padding: 0;
+    margin: 0;
+    height: 100%;
+    overflow: hidden;
+  }
+  
+  canvas {
+    padding: 0;
+    margin: 0;
+    left: 0;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    position: absolute;
+  }
+  
+  .page {
+    background-color: #1D1717;
+    height: 100%;
+    overflow: hidden;
+    position: relative;
+  }
+  
+  #list-container {
+    position: relative;
+    z-index: 1;
+    padding: 20px;
+    max-width: 600px;
+    margin: 0 auto;
+    overflow-y: auto;
+    max-height: 100vh; /* Ensure the container does not exceed the viewport height */
+  }
+  
+  .list-item {
+    background-color: #ffffff;
+    padding: 10px;
+    margin: 10px 0;
+    border-radius: 5px;
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+    font-family: "Comic Sans MS", cursive, sans-serif;
+    color: #004bec;
+  }
+  
+  .list-item h2 {
+    font-size: 24px;
+    margin-bottom: 5px;
+  }
+  
+  .list-item p {
+    font-size: 18px;
+    margin: 0;
+  }
+  

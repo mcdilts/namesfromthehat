@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Manage Event</title>
+  <script>
+    async function fetchEventDetails() {
+      const eventId = window.location.pathname.split('/').pop();
+      const eventResponse = await fetch(`/event-data/${eventId}`);
+      const event = await eventResponse.json();
+      document.getElementById('event-name').textContent = event.name;
+      fetchAvailableRounds(eventId);
+      fetchEventRounds(eventId);
+    }
+
+    async function fetchAvailableRounds(eventId) {
+      const response = await fetch(`/available-rounds/${eventId}`);
+      const rounds = await response.json();
+      const roundSelect = document.getElementById('round-select');
+      roundSelect.innerHTML = '';
+      rounds.forEach(round => {
+        const option = document.createElement('option');
+        option.value = round.id;
+        option.textContent = round.name;
+        roundSelect.appendChild(option);
+      });
+    }
+
+    async function fetchEventRounds(eventId) {
+      const response = await fetch(`/event-rounds/${eventId}`);
+      const rounds = await response.json();
+      const roundList = document.getElementById('event-round-list');
+      roundList.innerHTML = '';
+      rounds.forEach(round => {
+        const listItem = document.createElement('li');
+        listItem.textContent = round.name;
+        const viewButton = document.createElement('button');
+        viewButton.textContent = 'View';
+        viewButton.onclick = () => viewSelectionRound(round.id);
+        listItem.appendChild(viewButton);
+        roundList.appendChild(listItem);
+      });
+    }
+
+    async function handleCreateRound(event) {
+      event.preventDefault();
+      const eventId = window.location.pathname.split('/').pop();
+      const roundName = document.getElementById('round-name').value;
+
+      const response = await fetch('/create-selection-round', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ name: roundName, eventId }), // Include eventId
+      });
+
+      if (response.ok) {
+        alert('Round created and added to event successfully');
+        fetchEventRounds(eventId);
+        fetchAvailableRounds(eventId);
+      } else {
+        alert('Error creating round');
+      }
+    }
+
+    async function handleAddRound(event) {
+      event.preventDefault();
+      const eventId = window.location.pathname.split('/').pop();
+      const roundId = document.getElementById('round-select').value;
+
+      const response = await fetch('/add-list-to-event', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ eventId, roundId }),
+      });
+
+      if (response.ok) {
+        alert('Round added to event successfully');
+        fetchEventRounds(eventId);
+        fetchAvailableRounds(eventId);
+      } else {
+        alert('Error adding round to event');
+      }
+    }
+
+    async function assignGivenUsersEvent() {
+      const eventId = window.location.pathname.split('/').pop();
+      const response = await fetch(`/assign-given-users-event/${eventId}`, {
+        method: 'POST',
+      });
+
+      if (response.ok) {
+        alert('Given users assigned successfully for the event');
+        fetchEventRounds(eventId);
+      } else {
+        alert('Error assigning given users for the event');
+      }
+    }
+
+    function viewSelectionRound(roundId) {
+      window.location.href = `/selection-round/${roundId}`;
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      fetchEventDetails();
+      document.getElementById('create-round-form').addEventListener('submit', handleCreateRound);
+      document.getElementById('add-round-form').addEventListener('submit', handleAddRound);
+      document.getElementById('assign-event-button').addEventListener('click', assignGivenUsersEvent);
+    });
+  </script>
+</head>
+<body>
+  <h1>Manage Event: <span id="event-name"></span></h1>
+  <a href="/event-management">Back to Event Management</a>
+  <a href="/admin">Back to Admin</a>
+  
+  <h2>Create and Add New Round to Event</h2>
+  <form id="create-round-form">
+    <input type="text" id="round-name" placeholder="Round Name" required>
+    <button type="submit">Create Round</button>
+  </form>
+
+  <h2>Add Existing Round to Event</h2>
+  <form id="add-round-form">
+    <select id="round-select" required></select>
+    <button type="submit">Add Round</button>
+  </form>
+
+  <h2>Current Rounds in Event</h2>
+  <ul id="event-round-list"></ul>
+  <button id="assign-event-button">Assign Given Users for Event</button>
+</body>
+</html>

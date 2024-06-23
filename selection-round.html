@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Selection Round</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0;
+      padding: 20px;
+    }
+    h1, h2 {
+      color: #333;
+    }
+    ul {
+      list-style-type: none;
+      padding: 0;
+    }
+    li {
+      padding: 5px 0;
+    }
+    .user-pair {
+      display: flex;
+      justify-content: space-between;
+      background-color: #f9f9f9;
+      padding: 10px;
+      margin-bottom: 5px;
+      border: 1px solid #ddd;
+    }
+  </style>
+</head>
+<body>
+  <h1>Selection Round: <span id="round-name"></span></h1>
+  <h2>Given Users</h2>
+  <ul id="given-user-list"></ul>
+  <script>
+    async function fetchRoundDetails() {
+      const roundId = window.location.pathname.split('/').pop();
+      const roundResponse = await fetch(`/selection-round-data/${roundId}`);
+      const round = await roundResponse.json();
+      document.getElementById('round-name').textContent = round.name;
+
+      const givenUsersResponse = await fetch(`/given-users/${roundId}`);
+      const givenUsers = await givenUsersResponse.json();
+      const userList = document.getElementById('given-user-list');
+      userList.innerHTML = '';
+
+      givenUsers.forEach(user => {
+        const listItem = document.createElement('li');
+        listItem.className = 'user-pair';
+        listItem.textContent = `${user.username} -> ${user.given_username}`;
+        userList.appendChild(listItem);
+      });
+    }
+
+    document.addEventListener('DOMContentLoaded', fetchRoundDetails);
+  </script>
+</body>
+</html>

@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Event Management</title>
+  <script>
+    async function fetchEvents() {
+      const response = await fetch('/events');
+      const events = await response.json();
+      const eventList = document.getElementById('event-list');
+      eventList.innerHTML = '';
+      events.forEach(event => {
+        const listItem = document.createElement('li');
+        listItem.textContent = event.name;
+        const manageButton = document.createElement('button');
+        manageButton.textContent = 'Manage';
+        manageButton.onclick = () => manageEvent(event.id);
+        listItem.appendChild(manageButton);
+        const deleteButton = document.createElement('button');
+        deleteButton.textContent = 'Delete';
+        deleteButton.onclick = () => deleteEvent(event.id);
+        listItem.appendChild(deleteButton);
+        eventList.appendChild(listItem);
+      });
+    }
+
+    async function handleCreateEvent(event) {
+      event.preventDefault();
+      const eventName = document.getElementById('event-name').value;
+
+      const response = await fetch('/create-event', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ name: eventName }),
+      });
+
+      if (response.ok) {
+        alert('Event created successfully');
+        fetchEvents();
+      } else {
+        alert('Error creating event');
+      }
+    }
+
+    async function deleteEvent(eventId) {
+      const response = await fetch(`/delete-event/${eventId}`, {
+        method: 'DELETE',
+      });
+
+      if (response.ok) {
+        alert('Event deleted successfully');
+        fetchEvents();
+      } else {
+        alert('Error deleting event');
+      }
+    }
+
+    function manageEvent(eventId) {
+      window.location.href = `/manage-event/${eventId}`;
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      fetchEvents();
+      document.getElementById('create-event-form').addEventListener('submit', handleCreateEvent);
+    });
+  </script>
+</head>
+<body>
+  <h1>Event Management</h1>
+  <a href="/admin">Back to Admin</a>
+  <form id="create-event-form">
+    <input type="text" id="event-name" placeholder="Event Name" required>
+    <button type="submit">Create Event</button>
+  </form>
+  <h2>Current Events</h2>
+  <ul id="event-list"></ul>
+</body>
+</html>
