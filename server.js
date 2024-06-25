@@ -1,7 +1,6 @@
 const express = require('express');
 const bodyParser = require('body-parser');
-const sqlite3 = require('sqlite3').verbose();
-const mysql = require('mysql2')
+const mysql = require('mysql2');
 const path = require('path');
 const session = require('express-session');
 
@@ -17,8 +16,9 @@ app.use(session({
 }));
 
 const db = mysql.createConnection({
-  host: '11.110.0.15', // This could be 'localhost' or a specific hostname like 'db1234.hosting-data.io'
-  user: process.env(DATABASE_USER), // The database username you use to log in
+  host: '107.180.114.10',
+  port: 3306,
+  user:  process.env(DATABASE_USER), // The database username you use to log in
   password: process.env(DATABASE_AUTH), // The password for your database user
   database: 'namesfromthehat' // The name of your database
 });
@@ -31,6 +31,28 @@ db.connect((err) => {
   }
 });
 
+app.get('/test-db', (req, res) => {
+  const query = 'SELECT 1';
+  db.query(query, (err, results) => {
+    if (err) {
+      console.error('Database connection test failed:', err);
+      return res.status(500).json({ message: 'Database connection test failed' });
+    }
+    res.status(200).json({ message: 'Database connection successful', results });
+  });
+});
+
+app.get('/test-users', (req, res) => {
+  const query = 'SELECT * FROM Users LIMIT 1';
+  db.query(query, (err, results) => {
+    if (err) {
+      console.error('Database query failed:', err);
+      return res.status(500).json({ message: 'Database query failed' });
+    }
+    res.status(200).json({ message: 'Database query successful', results });
+  });
+});
+
 // Serve static files
 app.use(express.static(path.join(__dirname)));
 
@@ -38,12 +60,13 @@ app.use(express.static(path.join(__dirname)));
 app.post('/login', (req, res) => {
   const { username, password } = req.body;
   const query = 'SELECT id, username FROM Users WHERE username = ? AND password = ?';
-  db.get(query, [username, password], (err, user) => {
+  db.query(query, [username, password], (err, results) => {
     if (err) {
       console.error(err);
       return res.status(500).json({ message: 'Internal server error' });
     }
-    if (user) {
+    if (results.length > 0) {
+      const user = results[0];
       req.session.userId = user.id;
       req.session.username = user.username;
       res.status(200).json({ message: 'Login successful' });
@@ -74,12 +97,12 @@ app.get('/user-management', (req, res) => {
 app.post('/create-event', (req, res) => {
   const { name } = req.body;
   const query = 'INSERT INTO Events (name) VALUES (?)';
-  db.run(query, [name], function(err) {
+  db.query(query, [name], function(err, results) {
     if (err) {
       console.error(err);
       res.status(500).json({ message: 'Internal server error' });
     } else {
-      res.status(200).json({ message: 'Event created successfully', eventId: this.lastID });
+      res.status(200).json({ message: 'Event created successfully', eventId: results.insertId });
     }
   });
 });
@@ -87,7 +110,7 @@ app.post('/create-event', (req, res) => {
 app.delete('/delete-event/:id', (req, res) => {
   const eventId = req.params.id;
   const query = 'DELETE FROM Events WHERE id = ?';
-  db.run(query, [eventId], function(err) {
+  db.query(query, [eventId], function(err) {
     if (err) {
       console.error(err);
       res.status(500).json({ message: 'Internal server error' });
@@ -99,7 +122,7 @@ app.delete('/delete-event/:id', (req, res) => {
 
 app.get('/events', (req, res) => {
   const query = 'SELECT * FROM Events';
-  db.all(query, [], (err, rows) => {
+  db.query(query, [], (err, rows) => {
     if (err) {
       console.error(err);
       res.status(500).json({ message: 'Internal server error' });
@@ -112,12 +135,12 @@ app.get('/events', (req, res) => {
 app.get('/event-data/:id', (req, res) => {
   const eventId = req.params.id;
   const query = 'SELECT * FROM Events WHERE id = ?';
-  db.get(query, [eventId], (err, row) => {
+  db.query(query, [eventId], (err, rows) => {
     if (err) {
       console.error(err);
       res.status(500).json({ message: 'Internal server error' });
-    } else if (row) {
-      res.status(200).json(row);
+    } else if (rows.length > 0) {
+      res.status(200).json(rows[0]);
     } else {
       res.status(404).json({ message: 'Event not found' });
     }
@@ -133,7 +156,7 @@ app.get('/available-rounds/:eventId', (req, res) => {
     LEFT JOIN EventLists el ON sr.id = el.round_id AND el.event_id = ?
     WHERE el.event_id IS NULL
   `;
-  db.all(query, [eventId], (err, rows) => {
+  db.query(query, [eventId], (err, rows) => {
     if (err) {
       console.error(err);
       res.status(500).json({ message: 'Internal server error' });
@@ -152,7 +175,7 @@ app.get('/event-rounds/:eventId', (req, res) => {
     JOIN EventLists el ON sr.id = el.round_id
     WHERE el.event_id = ?
   `;
-  db.all(query, [eventId], (err, rows) => {
+  db.query(query, [eventId], (err, rows) => {
     if (err) {
       console.error(err);
       res.status(500).json({ message: 'Internal server error' });
@@ -166,7 +189,7 @@ app.get('/event-rounds/:eventId', (req, res) => {
 app.post('/add-list-to-event', (req, res) => {
   const { eventId, roundId } = req.body;
   const query = 'INSERT INTO EventLists (event_id, round_id) VALUES (?, ?)';
-  db.run(query, [eventId, roundId], function(err) {
+  db.query(query, [eventId, roundId], function(err) {
     if (err) {
       console.error(err);
       if (!res.headersSent) {
@@ -185,7 +208,7 @@ app.post('/add-list-banned-user', (req, res) => {
   const { userId, bannedUserId, listId } = req.body;
 
   const query = 'INSERT INTO ListBannedUsers (user_id, banned_user_id, list_id) VALUES (?, ?, ?)';
-  db.run(query, [userId, bannedUserId, listId], function(err) {
+  db.query(query, [userId, bannedUserId, listId], function(err) {
     if (err) {
       console.error('Failed to add list banned user:', err);
       res.status(500).json({ message: 'Failed to add list banned user' });
@@ -205,7 +228,7 @@ app.get('/list-banned-users/:userId', (req, res) => {
     JOIN SelectionRounds sr ON lbu.list_id = sr.id
     WHERE lbu.user_id = ?
   `;
-  db.all(query, [userId], (err, rows) => {
+  db.query(query, [userId], (err, rows) => {
     if (err) {
       console.error('Failed to fetch list banned users:', err);
       res.status(500).json({ message: 'Failed to fetch list banned users' });
@@ -219,7 +242,7 @@ app.post('/remove-list-banned-user', (req, res) => {
   const { userId, bannedUserId, listId } = req.body;
 
   const query = 'DELETE FROM ListBannedUsers WHERE user_id = ? AND banned_user_id = ? AND list_id = ?';
-  db.run(query, [userId, bannedUserId, listId], function(err) {
+  db.query(query, [userId, bannedUserId, listId], function(err) {
     if (err) {
       console.error('Failed to remove list banned user:', err);
       res.status(500).json({ message: 'Failed to remove list banned user' });
@@ -238,7 +261,7 @@ app.get('/banned-users-for-list/:listId', (req, res) => {
     JOIN Users bu ON lbu.banned_user_id = bu.id
     WHERE lbu.list_id = ?
   `;
-  db.all(query, [listId], (err, rows) => {
+  db.query(query, [listId], (err, rows) => {
     if (err) {
       console.error(err);
       return res.status(500).json({ message: 'Internal server error' });
@@ -246,7 +269,6 @@ app.get('/banned-users-for-list/:listId', (req, res) => {
     res.status(200).json(rows);
   });
 });
-
 
 
 // Assign Given Users for an event
@@ -261,7 +283,7 @@ app.post('/assign-given-users-event/:eventId', (req, res) => {
     try {
       const rounds = await new Promise((resolve, reject) => {
         const roundsQuery = 'SELECT id FROM SelectionRounds WHERE event_id = ?';
-        db.all(roundsQuery, [eventId], (err, rows) => {
+        db.query(roundsQuery, [eventId], (err, rows) => {
           if (err) return reject(err);
           resolve(rows);
         });
@@ -277,7 +299,7 @@ app.post('/assign-given-users-event/:eventId', (req, res) => {
 
       const users = await new Promise((resolve, reject) => {
         const userQuery = 'SELECT id, banned_users FROM Users';
-        db.all(userQuery, [], (err, rows) => {
+        db.query(userQuery, [], (err, rows) => {
           if (err) return reject(err);
           resolve(rows);
         });
@@ -293,7 +315,7 @@ app.post('/assign-given-users-event/:eventId', (req, res) => {
           JOIN SelectionRounds sr ON us.round_id = sr.id
           WHERE sr.event_id = ?
         `;
-        db.all(existingAssignmentsQuery, [eventId], (err, rows) => {
+        db.query(existingAssignmentsQuery, [eventId], (err, rows) => {
           if (err) return reject(err);
           resolve(rows);
         });
@@ -315,7 +337,7 @@ app.post('/assign-given-users-event/:eventId', (req, res) => {
 
           const listBannedUsers = await new Promise((resolve, reject) => {
             const listBannedQuery = 'SELECT banned_user_id FROM ListBannedUsers WHERE user_id = ? AND list_id = ?';
-            db.all(listBannedQuery, [user.id, roundId], (err, rows) => {
+            db.query(listBannedQuery, [user.id, roundId], (err, rows) => {
               if (err) return reject(err);
               resolve(rows.map(u => u.banned_user_id));
             });
@@ -394,12 +416,12 @@ app.get('/selection-round/:id', (req, res) => {
 app.post('/create-selection-round', (req, res) => {
   const { name, eventId } = req.body;
   const query = 'INSERT INTO SelectionRounds (name, event_id) VALUES (?, ?)';
-  db.run(query, [name, eventId], function(err) {
+  db.query(query, [name, eventId], function(err, results) {
     if (err) {
       console.error(err);
       res.status(500).json({ message: 'Internal server error' });
     } else {
-      res.status(200).json({ message: 'Selection round created successfully', roundId: this.lastID });
+      res.status(200).json({ message: 'Selection round created successfully', roundId: results.insertId });
     }
   });
 });
@@ -407,7 +429,7 @@ app.post('/create-selection-round', (req, res) => {
 app.delete('/delete-selection-round/:id', (req, res) => {
   const roundId = req.params.id;
   const query = 'DELETE FROM SelectionRounds WHERE id = ?';
-  db.run(query, [roundId], function(err) {
+  db.query(query, [roundId], function(err) {
     if (err) {
       console.error(err);
       res.status(500).json({ message: 'Internal server error' });
@@ -419,7 +441,7 @@ app.delete('/delete-selection-round/:id', (req, res) => {
 
 app.get('/selection-rounds', (req, res) => {
   const query = 'SELECT * FROM SelectionRounds';
-  db.all(query, [], (err, rows) => {
+  db.query(query, [], (err, rows) => {
     if (err) {
       console.error(err);
       res.status(500).json({ message: 'Internal server error' });
@@ -432,12 +454,12 @@ app.get('/selection-rounds', (req, res) => {
 app.get('/selection-round-data/:id', (req, res) => {
   const roundId = req.params.id;
   const query = 'SELECT * FROM SelectionRounds WHERE id = ?';
-  db.get(query, [roundId], (err, row) => {
+  db.query(query, [roundId], (err, rows) => {
     if (err) {
       console.error(err);
       res.status(500).json({ message: 'Internal server error' });
-    } else if (row) {
-      res.status(200).json(row);
+    } else if (rows.length > 0) {
+      res.status(200).json(rows[0]);
     } else {
       res.status(404).json({ message: 'Selection round not found' });
     }
@@ -452,7 +474,7 @@ app.get('/given-users/:roundId', (req, res) => {
     LEFT JOIN UserSelections us ON u.id = us.user_id AND us.round_id = ?
     LEFT JOIN Users gu ON us.given_user_id = gu.id
   `;
-  db.all(query, [roundId], (err, rows) => {
+  db.query(query, [roundId], (err, rows) => {
     if (err) {
       console.error('Error fetching given users:', err);
       return res.status(500).json({ message: 'Internal server error' });
@@ -461,7 +483,6 @@ app.get('/given-users/:roundId', (req, res) => {
     res.status(200).json(rows);
   });
 });
-
 
 // User login and dashboard routes
 app.get('/login', (req, res) => {
@@ -497,7 +518,7 @@ app.get('/user-lists', (req, res) => {
     LEFT JOIN Users u ON us.given_user_id = u.id
     WHERE us.user_id = ?
   `;
-  db.all(query, [userId], (err, rows) => {
+  db.query(query, [userId], (err, rows) => {
     if (err) {
       console.error(err);
       res.status(500).json({ message: 'Internal server error' });
@@ -513,7 +534,7 @@ app.get('/user-lists', (req, res) => {
 // User management routes
 app.get('/users', (req, res) => {
   const query = 'SELECT id, username FROM Users';
-  db.all(query, [], (err, rows) => {
+  db.query(query, [], (err, rows) => {
     if (err) {
       console.error(err);
       res.status(500).json({ message: 'Internal server error' });
@@ -531,7 +552,7 @@ app.get('/banned-users/:userId', (req, res) => {
     JOIN Users u ON bu.banned_user_id = u.id 
     WHERE bu.user_id = ?
   `;
-  db.all(query, [userId], (err, rows) => {
+  db.query(query, [userId], (err, rows) => {
     if (err) {
       console.error(err);
       res.status(500).json({ message: 'Internal server error' });
@@ -544,7 +565,7 @@ app.get('/banned-users/:userId', (req, res) => {
 app.post('/add-banned-user', (req, res) => {
   const { userId, bannedUserId } = req.body;
   const query = 'INSERT INTO BannedUsers (user_id, banned_user_id) VALUES (?, ?)';
-  db.run(query, [userId, bannedUserId], function(err) {
+  db.query(query, [userId, bannedUserId], function(err) {
     if (err) {
       console.error(err);
       res.status(500).json({ message: 'Internal server error' });
