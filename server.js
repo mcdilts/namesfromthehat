@@ -17,9 +17,9 @@ app.use(session({
 }));
 
 const db = mysql.createConnection({
-  host: 'https://p3plzcpnl505317.prod.phx3.secureserver.net:2083/cpsess6158946432/3rdparty/phpMyAdmin/index.php?route=/', // This could be 'localhost' or a specific hostname like 'db1234.hosting-data.io'
-  user: 'mdilts', // The database username you use to log in
-  password: 'U!(o!4HQi8YZ', // The password for your database user
+  host: '11.110.0.15', // This could be 'localhost' or a specific hostname like 'db1234.hosting-data.io'
+  user: process.env(DATABASE_USER), // The database username you use to log in
+  password: process.env(DATABASE_AUTH), // The password for your database user
   database: 'namesfromthehat' // The name of your database
 });
 
