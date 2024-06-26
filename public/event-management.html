@@ -6,54 +6,68 @@
   <title>Event Management</title>
   <script>
     async function fetchEvents() {
-      const response = await fetch('/events');
-      const events = await response.json();
-      const eventList = document.getElementById('event-list');
-      eventList.innerHTML = '';
-      events.forEach(event => {
-        const listItem = document.createElement('li');
-        listItem.textContent = event.name;
-        const manageButton = document.createElement('button');
-        manageButton.textContent = 'Manage';
-        manageButton.onclick = () => manageEvent(event.id);
-        listItem.appendChild(manageButton);
-        const deleteButton = document.createElement('button');
-        deleteButton.textContent = 'Delete';
-        deleteButton.onclick = () => deleteEvent(event.id);
-        listItem.appendChild(deleteButton);
-        eventList.appendChild(listItem);
-      });
+      try {
+        const response = await fetch('/api/events');
+        const events = await response.json();
+        const eventList = document.getElementById('event-list');
+        eventList.innerHTML = '';
+        events.forEach(event => {
+          const listItem = document.createElement('li');
+          listItem.textContent = event.name;
+          const manageButton = document.createElement('button');
+          manageButton.textContent = 'Manage';
+          manageButton.onclick = () => manageEvent(event.id);
+          listItem.appendChild(manageButton);
+          const deleteButton = document.createElement('button');
+          deleteButton.textContent = 'Delete';
+          deleteButton.onclick = () => deleteEvent(event.id);
+          listItem.appendChild(deleteButton);
+          eventList.appendChild(listItem);
+        });
+      } catch (error) {
+        console.error('Error fetching events:', error);
+      }
     }
 
     async function handleCreateEvent(event) {
       event.preventDefault();
       const eventName = document.getElementById('event-name').value;
 
-      const response = await fetch('/create-event', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ name: eventName }),
-      });
+      try {
+        const response = await fetch('/api/create-event', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ name: eventName }),
+        });
 
-      if (response.ok) {
-        alert('Event created successfully');
-        fetchEvents();
-      } else {
+        if (response.ok) {
+          alert('Event created successfully');
+          fetchEvents();
+        } else {
+          alert('Error creating event');
+        }
+      } catch (error) {
+        console.error('Error creating event:', error);
         alert('Error creating event');
       }
     }
 
     async function deleteEvent(eventId) {
-      const response = await fetch(`/delete-event/${eventId}`, {
-        method: 'DELETE',
-      });
+      try {
+        const response = await fetch(`/api/delete-event/${eventId}`, {
+          method: 'DELETE',
+        });
 
-      if (response.ok) {
-        alert('Event deleted successfully');
-        fetchEvents();
-      } else {
+        if (response.ok) {
+          alert('Event deleted successfully');
+          fetchEvents();
+        } else {
+          alert('Error deleting event');
+        }
+      } catch (error) {
+        console.error('Error deleting event:', error);
         alert('Error deleting event');
       }
     }

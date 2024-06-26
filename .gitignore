@@ -1,2 +1,4 @@
 .env
 old_server.js
+.vercel
+node_modules
