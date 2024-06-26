@@ -7,40 +7,52 @@
   <script>
     async function fetchEventDetails() {
       const eventId = window.location.pathname.split('/').pop();
-      const eventResponse = await fetch(`/event-data/${eventId}`);
-      const event = await eventResponse.json();
-      document.getElementById('event-name').textContent = event.name;
-      fetchAvailableRounds(eventId);
-      fetchEventRounds(eventId);
+      try {
+        const eventResponse = await fetch(`/api/event-data/${eventId}`);
+        const event = await eventResponse.json();
+        document.getElementById('event-name').textContent = event.name;
+        fetchAvailableRounds(eventId);
+        fetchEventRounds(eventId);
+      } catch (error) {
+        console.error('Error fetching event details:', error);
+      }
     }
 
     async function fetchAvailableRounds(eventId) {
-      const response = await fetch(`/available-rounds/${eventId}`);
-      const rounds = await response.json();
-      const roundSelect = document.getElementById('round-select');
-      roundSelect.innerHTML = '';
-      rounds.forEach(round => {
-        const option = document.createElement('option');
-        option.value = round.id;
-        option.textContent = round.name;
-        roundSelect.appendChild(option);
-      });
+      try {
+        const response = await fetch(`/api/available-rounds/${eventId}`);
+        const rounds = await response.json();
+        const roundSelect = document.getElementById('round-select');
+        roundSelect.innerHTML = '';
+        rounds.forEach(round => {
+          const option = document.createElement('option');
+          option.value = round.id;
+          option.textContent = round.name;
+          roundSelect.appendChild(option);
+        });
+      } catch (error) {
+        console.error('Error fetching available rounds:', error);
+      }
     }
 
     async function fetchEventRounds(eventId) {
-      const response = await fetch(`/event-rounds/${eventId}`);
-      const rounds = await response.json();
-      const roundList = document.getElementById('event-round-list');
-      roundList.innerHTML = '';
-      rounds.forEach(round => {
-        const listItem = document.createElement('li');
-        listItem.textContent = round.name;
-        const viewButton = document.createElement('button');
-        viewButton.textContent = 'View';
-        viewButton.onclick = () => viewSelectionRound(round.id);
-        listItem.appendChild(viewButton);
-        roundList.appendChild(listItem);
-      });
+      try {
+        const response = await fetch(`/api/event-rounds/${eventId}`);
+        const rounds = await response.json();
+        const roundList = document.getElementById('event-round-list');
+        roundList.innerHTML = '';
+        rounds.forEach(round => {
+          const listItem = document.createElement('li');
+          listItem.textContent = round.name;
+          const viewButton = document.createElement('button');
+          viewButton.textContent = 'View';
+          viewButton.onclick = () => viewSelectionRound(round.id);
+          listItem.appendChild(viewButton);
+          roundList.appendChild(listItem);
+        });
+      } catch (error) {
+        console.error('Error fetching event rounds:', error);
+      }
     }
 
     async function handleCreateRound(event) {
@@ -48,19 +60,24 @@
       const eventId = window.location.pathname.split('/').pop();
       const roundName = document.getElementById('round-name').value;
 
-      const response = await fetch('/create-selection-round', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ name: roundName, eventId }), // Include eventId
-      });
+      try {
+        const response = await fetch('/api/create-selection-round', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ name: roundName, eventId }),
+        });
 
-      if (response.ok) {
-        alert('Round created and added to event successfully');
-        fetchEventRounds(eventId);
-        fetchAvailableRounds(eventId);
-      } else {
+        if (response.ok) {
+          alert('Round created and added to event successfully');
+          fetchEventRounds(eventId);
+          fetchAvailableRounds(eventId);
+        } else {
+          alert('Error creating round');
+        }
+      } catch (error) {
+        console.error('Error creating round:', error);
         alert('Error creating round');
       }
     }
@@ -70,33 +87,43 @@
       const eventId = window.location.pathname.split('/').pop();
       const roundId = document.getElementById('round-select').value;
 
-      const response = await fetch('/add-list-to-event', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ eventId, roundId }),
-      });
+      try {
+        const response = await fetch('/api/add-list-to-event', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ eventId, roundId }),
+        });
 
-      if (response.ok) {
-        alert('Round added to event successfully');
-        fetchEventRounds(eventId);
-        fetchAvailableRounds(eventId);
-      } else {
+        if (response.ok) {
+          alert('Round added to event successfully');
+          fetchEventRounds(eventId);
+          fetchAvailableRounds(eventId);
+        } else {
+          alert('Error adding round to event');
+        }
+      } catch (error) {
+        console.error('Error adding round to event:', error);
         alert('Error adding round to event');
       }
     }
 
     async function assignGivenUsersEvent() {
       const eventId = window.location.pathname.split('/').pop();
-      const response = await fetch(`/assign-given-users-event/${eventId}`, {
-        method: 'POST',
-      });
+      try {
+        const response = await fetch(`/api/assign-given-users-event/${eventId}`, {
+          method: 'POST',
+        });
 
-      if (response.ok) {
-        alert('Given users assigned successfully for the event');
-        fetchEventRounds(eventId);
-      } else {
+        if (response.ok) {
+          alert('Given users assigned successfully for the event');
+          fetchEventRounds(eventId);
+        } else {
+          alert('Error assigning given users for the event');
+        }
+      } catch (error) {
+        console.error('Error assigning given users for the event:', error);
         alert('Error assigning given users for the event');
       }
     }

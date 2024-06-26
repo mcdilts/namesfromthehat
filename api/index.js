@@ -2,25 +2,23 @@ const express = require('express');
 const bodyParser = require('body-parser');
 const mysql = require('mysql2');
 const session = require('express-session');
+const dotenv = require('dotenv');
 const path = require('path');
+const MySQLStore = require('express-mysql-session')(session);
+const fs = require('fs');
+
+dotenv.config();
 
 const app = express();
-const router = express.Router();
 
-// Set up middleware
-app.use(bodyParser.json());
-app.use(session({
-  secret: 'secret-key', // Replace with a secure secret key
-  resave: false,
-  saveUninitialized: true
-}));
+// Serve static files from the public directory
+app.use(express.static(path.join(__dirname, '..', 'public')));
 
 const db = mysql.createConnection({
-  host: 'p3plzcpnl505317.prod.phx3.secureserver.net',
-  port: 3306,
-  user: process.env(DATABASE_USER),
-  password: process.env(DATABASE_AUTH),
-  database: 'namesfromthehat'
+  host: process.env.DATABASE_HOST,
+  user: process.env.DATABASE_USER,
+  password: process.env.DATABASE_PASSWORD,
+  database: process.env.DATABASE_NAME,
 });
 
 db.connect((err) => {
@@ -31,61 +29,143 @@ db.connect((err) => {
   }
 });
 
-// Serve static files
-app.use(express.static(path.join(__dirname, 'public')));
+const sessionStore = new MySQLStore({
+  host: process.env.DATABASE_HOST,
+  user: process.env.DATABASE_USER,
+  password: process.env.DATABASE_PASSWORD,
+  database: process.env.DATABASE_NAME,
+  schema: {
+    tableName: 'sessions',
+  },
+});
 
-// Login route
-router.post('/login', (req, res) => {
+app.use(bodyParser.json());
+app.use(
+  session({
+    secret: process.env.SESSION_SECRET,
+    resave: false,
+    saveUninitialized: false,
+    store: sessionStore,
+    cookie: { secure: false, httpOnly: true },
+  })
+);
+
+// Middleware to log session data
+app.use((req, res, next) => {
+  console.log("Middleware session check:", req.session);
+  next();
+});
+
+// Middleware to check session and redirect to login if not present
+function checkSession(req, res, next) {
+  if (!req.session || !req.session.userId) {
+    console.log("No user session found. Redirecting to login page.");
+    return res.redirect('/login');
+  }
+  next();
+}
+
+// Check if login.html exists and serve it
+app.get('/login', (req, res) => {
+  const filePath = path.join(__dirname, '..', 'public', 'login.html');
+  console.log(`Checking file path: ${filePath}`);
+  fs.access(filePath, fs.constants.F_OK, (err) => {
+    if (err) {
+      console.error('File does not exist:', filePath);
+      return res.status(404).send('File not found');
+    }
+    res.sendFile(filePath);
+  });
+});
+
+// Define API routes
+app.get('/api/user-data', (req, res) => {
+  console.log("Checking user session in /api/user-data:", req.session);
+  if (req.session && req.session.userId) {
+    res.status(200).json({
+      loggedIn: true,
+      username: req.session.username,
+    });
+  } else {
+    res.status(200).json({
+      loggedIn: false,
+    });
+  }
+});
+
+app.post('/api/login', (req, res) => {
   const { username, password } = req.body;
   const query = 'SELECT id, username FROM Users WHERE username = ? AND password = ?';
   db.query(query, [username, password], (err, results) => {
     if (err) {
-      console.error('Login query failed:', err);
+      console.error('Database error:', err);
       return res.status(500).json({ message: 'Internal server error' });
     }
     if (results.length > 0) {
       const user = results[0];
       req.session.userId = user.id;
       req.session.username = user.username;
-      res.status(200).json({ message: 'Login successful' });
+      req.session.save((err) => {
+        if (err) {
+          console.error('Session save error:', err);
+          return res.status(500).json({ message: 'Session save error' });
+        }
+        console.log("Login successful for user:", user.username);
+        console.log("Session after login:", req.session);
+        return res.status(200).json({ message: 'Login successful' });
+      });
     } else {
-      res.status(401).json({ message: 'Invalid username or password' });
+      console.log("Invalid username or password.");
+      return res.status(401).json({ message: 'Invalid username or password' });
     }
   });
 });
 
-// Admin and event management routes
-router.get('/admin', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'admin.html'));
+app.post('/api/logout', (req, res) => {
+  req.session.destroy((err) => {
+    if (err) {
+      return res.status(500).json({ message: 'Logout failed' });
+    }
+    res.clearCookie('connect.sid');
+    res.status(200).json({ message: 'Logout successful' });
+  });
 });
 
-router.get('/event-management', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'event-management.html'));
+// Serve other pages
+app.get('/dashboard', checkSession, (req, res) => {
+  res.sendFile(path.join(__dirname, '..', 'public', 'user-dashboard.html'));
 });
 
-router.get('/manage-event/:id', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'manage-event.html'));
+app.get('/admin', checkSession, (req, res) => {
+  res.sendFile(path.join(__dirname, '..', 'public', 'admin.html'));
 });
 
-router.get('/user-management', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'user-management.html'));
+app.get('/event-management', checkSession, (req, res) => {
+  res.sendFile(path.join(__dirname, '..', 'public', 'event-management.html'));
 });
 
-// Event CRUD operations
-router.post('/create-event', (req, res) => {
+app.get('/manage-event/:id', checkSession, (req, res) => {
+  res.sendFile(path.join(__dirname, '..', 'public', 'manage-event.html'));
+});
+
+app.get('/user-management', checkSession, (req, res) => {
+  res.sendFile(path.join(__dirname, '..', 'public', 'user-management.html'));
+});
+
+app.post('/api/create-event', checkSession, (req, res) => {
   const { name } = req.body;
   const query = 'INSERT INTO Events (name) VALUES (?)';
-  db.query(query, [name], function(err, result) {
+  db.query(query, [name], function(err, results) {
     if (err) {
       console.error(err);
       res.status(500).json({ message: 'Internal server error' });
     } else {
-      res.status(200).json({ message: 'Event created successfully', eventId: result.insertId });
+      res.status(200).json({ message: 'Event created successfully', eventId: results.insertId });
     }
   });
 });
 
-router.delete('/delete-event/:id', (req, res) => {
+app.delete('/api/delete-event/:id', checkSession, (req, res) => {
   const eventId = req.params.id;
   const query = 'DELETE FROM Events WHERE id = ?';
   db.query(query, [eventId], function(err) {
@@ -98,9 +178,9 @@ router.delete('/delete-event/:id', (req, res) => {
   });
 });
 
-router.get('/events', (req, res) => {
+app.get('/api/events', checkSession, (req, res) => {
   const query = 'SELECT * FROM Events';
-  db.query(query, [], (err, rows) => {
+  db.query(query, (err, rows) => {
     if (err) {
       console.error(err);
       res.status(500).json({ message: 'Internal server error' });
@@ -110,23 +190,33 @@ router.get('/events', (req, res) => {
   });
 });
 
-router.get('/event-data/:id', (req, res) => {
-  const eventId = req.params.id;
-  const query = 'SELECT * FROM Events WHERE id = ?';
-  db.query(query, [eventId], (err, row) => {
+// Add this route to fetch user's events and given users
+app.get('/api/user-events', checkSession, (req, res) => {
+  const userId = req.session.userId;
+  const query = `
+    SELECT 
+      e.name AS eventName, 
+      sr.name AS listName, 
+      u.username AS givenUser 
+    FROM 
+      UserSelections us
+      JOIN SelectionRounds sr ON us.round_id = sr.id
+      JOIN Events e ON sr.event_id = e.id
+      JOIN Users u ON us.given_user_id = u.id
+    WHERE 
+      us.user_id = ?
+  `;
+  db.query(query, [userId], (err, rows) => {
     if (err) {
-      console.error(err);
-      res.status(500).json({ message: 'Internal server error' });
-    } else if (row.length > 0) {
-      res.status(200).json(row[0]);
+      console.error('Failed to fetch user events:', err);
+      res.status(500).json({ message: 'Failed to fetch user events' });
     } else {
-      res.status(404).json({ message: 'Event not found' });
+      res.status(200).json(rows);
     }
   });
 });
 
-// Fetch available rounds not associated with the event
-router.get('/available-rounds/:eventId', (req, res) => {
+app.get('/api/available-rounds/:eventId', checkSession, (req, res) => {
   const eventId = req.params.eventId;
   const query = `
     SELECT sr.id, sr.name
@@ -144,8 +234,7 @@ router.get('/available-rounds/:eventId', (req, res) => {
   });
 });
 
-// Fetch rounds associated with the event
-router.get('/event-rounds/:eventId', (req, res) => {
+app.get('/api/event-rounds/:eventId', checkSession, (req, res) => {
   const eventId = req.params.eventId;
   const query = `
     SELECT sr.id, sr.name
@@ -163,28 +252,21 @@ router.get('/event-rounds/:eventId', (req, res) => {
   });
 });
 
-// Add existing round to event
-router.post('/add-list-to-event', (req, res) => {
+app.post('/api/add-list-to-event', checkSession, (req, res) => {
   const { eventId, roundId } = req.body;
   const query = 'INSERT INTO EventLists (event_id, round_id) VALUES (?, ?)';
   db.query(query, [eventId, roundId], function(err) {
     if (err) {
       console.error(err);
-      if (!res.headersSent) {
-        res.status(500).json({ message: 'Internal server error' });
-      }
+      res.status(500).json({ message: 'Internal server error' });
     } else {
-      if (!res.headersSent) {
-        res.status(200).json({ message: 'List added to event successfully' });
-      }
+      res.status(200).json({ message: 'List added to event successfully' });
     }
   });
 });
 
-// Add banned user to list
-router.post('/add-list-banned-user', (req, res) => {
+app.post('/api/add-list-banned-user', checkSession, (req, res) => {
   const { userId, bannedUserId, listId } = req.body;
-
   const query = 'INSERT INTO ListBannedUsers (user_id, banned_user_id, list_id) VALUES (?, ?, ?)';
   db.query(query, [userId, bannedUserId, listId], function(err) {
     if (err) {
@@ -196,9 +278,8 @@ router.post('/add-list-banned-user', (req, res) => {
   });
 });
 
-router.get('/list-banned-users/:userId', (req, res) => {
+app.get('/api/list-banned-users/:userId', checkSession, (req, res) => {
   const userId = req.params.userId;
-
   const query = `
     SELECT lbu.banned_user_id AS id, u.username, sr.name AS listName, lbu.list_id AS listId
     FROM ListBannedUsers lbu
@@ -216,9 +297,8 @@ router.get('/list-banned-users/:userId', (req, res) => {
   });
 });
 
-router.post('/remove-list-banned-user', (req, res) => {
+app.post('/api/remove-list-banned-user', checkSession, (req, res) => {
   const { userId, bannedUserId, listId } = req.body;
-
   const query = 'DELETE FROM ListBannedUsers WHERE user_id = ? AND banned_user_id = ? AND list_id = ?';
   db.query(query, [userId, bannedUserId, listId], function(err) {
     if (err) {
@@ -230,7 +310,7 @@ router.post('/remove-list-banned-user', (req, res) => {
   });
 });
 
-router.get('/banned-users-for-list/:listId', (req, res) => {
+app.get('/api/banned-users-for-list/:listId', checkSession, (req, res) => {
   const listId = req.params.listId;
   const query = `
     SELECT u.username AS user, bu.username AS banned_user
@@ -249,7 +329,7 @@ router.get('/banned-users-for-list/:listId', (req, res) => {
 });
 
 // Assign Given Users for an event
-router.post('/assign-given-users-event/:eventId', (req, res) => {
+app.post('/api/assign-given-users-event/:eventId', checkSession, (req, res) => {
   const eventId = req.params.eventId;
   let attempt = 0;
 
@@ -355,18 +435,15 @@ router.post('/assign-given-users-event/:eventId', (req, res) => {
       }
 
       const insertQuery = 'INSERT INTO UserSelections (user_id, given_user_id, round_id) VALUES (?, ?, ?)';
-      const insertStmt = db.prepare(insertQuery);
-
       await Promise.all(allAssignments.map(assignment => {
         return new Promise((resolve, reject) => {
-          insertStmt.run([assignment.user_id, assignment.given_user_id, assignment.round_id], err => {
+          db.query(insertQuery, [assignment.user_id, assignment.given_user_id, assignment.round_id], err => {
             if (err) return reject(err);
             resolve();
           });
         });
       }));
 
-      insertStmt.finalize();
       console.log('All assignments inserted successfully');
       return res.status(200).json({ message: 'Given users assigned successfully' });
 
@@ -379,21 +456,28 @@ router.post('/assign-given-users-event/:eventId', (req, res) => {
   assignUsers();
 });
 
-// Create new round and associate with event
-router.post('/create-selection-round', (req, res) => {
+app.get('/api/selection-round-list', checkSession, (req, res) => {
+  res.sendFile(path.join(__dirname, '..', 'public', 'selection-round-list.html'));
+});
+
+app.get('/api/selection-round/:id', checkSession, (req, res) => {
+  res.sendFile(path.join(__dirname, '..', 'public', 'selection-round.html'));
+});
+
+app.post('/api/create-selection-round', checkSession, (req, res) => {
   const { name, eventId } = req.body;
   const query = 'INSERT INTO SelectionRounds (name, event_id) VALUES (?, ?)';
-  db.query(query, [name, eventId], function(err, result) {
+  db.query(query, [name, eventId], function(err, results) {
     if (err) {
       console.error(err);
       res.status(500).json({ message: 'Internal server error' });
     } else {
-      res.status(200).json({ message: 'Selection round created successfully', roundId: result.insertId });
+      res.status(200).json({ message: 'Selection round created successfully', roundId: results.insertId });
     }
   });
 });
 
-router.delete('/delete-selection-round/:id', (req, res) => {
+app.delete('/api/delete-selection-round/:id', checkSession, (req, res) => {
   const roundId = req.params.id;
   const query = 'DELETE FROM SelectionRounds WHERE id = ?';
   db.query(query, [roundId], function(err) {
@@ -406,7 +490,7 @@ router.delete('/delete-selection-round/:id', (req, res) => {
   });
 });
 
-router.get('/selection-rounds', (req, res) => {
+app.get('/api/selection-rounds', checkSession, (req, res) => {
   const query = 'SELECT * FROM SelectionRounds';
   db.query(query, [], (err, rows) => {
     if (err) {
@@ -418,22 +502,22 @@ router.get('/selection-rounds', (req, res) => {
   });
 });
 
-router.get('/selection-round-data/:id', (req, res) => {
+app.get('/api/selection-round-data/:id', checkSession, (req, res) => {
   const roundId = req.params.id;
   const query = 'SELECT * FROM SelectionRounds WHERE id = ?';
   db.query(query, [roundId], (err, row) => {
     if (err) {
       console.error(err);
       res.status(500).json({ message: 'Internal server error' });
-    } else if (row.length > 0) {
-      res.status(200).json(row[0]);
+    } else if (row) {
+      res.status(200).json(row);
     } else {
       res.status(404).json({ message: 'Selection round not found' });
     }
   });
 });
 
-router.get('/given-users/:roundId', (req, res) => {
+app.get('/api/given-users/:roundId', checkSession, (req, res) => {
   const roundId = req.params.roundId;
   const query = `
     SELECT u.username, gu.username AS given_username
@@ -446,34 +530,30 @@ router.get('/given-users/:roundId', (req, res) => {
       console.error('Error fetching given users:', err);
       return res.status(500).json({ message: 'Internal server error' });
     }
-    console.log('Fetched given users:', rows);
     res.status(200).json(rows);
   });
 });
 
 // User login and dashboard routes
-router.get('/login', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'login.html'));
-});
-
-router.get('/dashboard', (req, res) => {
-  if (!req.session.userId) {
-    return res.redirect('/login');
-  }
-  res.sendFile(path.join(__dirname, 'public', 'user-dashboard.html'));
-});
-
-router.get('/user-data', (req, res) => {
-  if (!req.session.userId) {
-    return res.json({ loggedIn: false });
-  }
-  res.json({
-    loggedIn: true,
-    username: req.session.username
+app.get('/login', (req, res) => {
+  const filePath = path.join(__dirname, '..', 'public', 'login.html');
+  fs.access(filePath, fs.constants.F_OK, (err) => {
+    if (err) {
+      console.error('File does not exist:', filePath);
+      return res.status(404).send('File not found');
+    }
+    res.sendFile(filePath);
   });
 });
 
-router.get('/user-lists', (req, res) => {
+app.get('/dashboard', checkSession, (req, res) => {
+  if (!req.session.userId) {
+    return res.redirect('/login');
+  }
+  res.sendFile(path.join(__dirname, '..', 'public', 'user-dashboard.html'));
+});
+
+app.get('/api/user-lists', checkSession, (req, res) => {
   if (!req.session.userId) {
     return res.status(401).json({ message: 'Unauthorized' });
   }
@@ -499,7 +579,7 @@ router.get('/user-lists', (req, res) => {
 });
 
 // User management routes
-router.get('/users', (req, res) => {
+app.get('/api/users', checkSession, (req, res) => {
   const query = 'SELECT id, username FROM Users';
   db.query(query, [], (err, rows) => {
     if (err) {
@@ -511,7 +591,7 @@ router.get('/users', (req, res) => {
   });
 });
 
-router.get('/banned-users/:userId', (req, res) => {
+app.get('/api/banned-users/:userId', checkSession, (req, res) => {
   const userId = req.params.userId;
   const query = `
     SELECT bu.banned_user_id, u.username 
@@ -529,7 +609,7 @@ router.get('/banned-users/:userId', (req, res) => {
   });
 });
 
-router.post('/add-banned-user', (req, res) => {
+app.post('/api/add-banned-user', checkSession, (req, res) => {
   const { userId, bannedUserId } = req.body;
   const query = 'INSERT INTO BannedUsers (user_id, banned_user_id) VALUES (?, ?)';
   db.query(query, [userId, bannedUserId], function(err) {
@@ -542,7 +622,7 @@ router.post('/add-banned-user', (req, res) => {
   });
 });
 
-router.post('/remove-banned-user', (req, res) => {
+app.post('/api/remove-banned-user', checkSession, (req, res) => {
   const { userId, bannedUserId } = req.body;
   const query = 'DELETE FROM BannedUsers WHERE user_id = ? AND banned_user_id = ?';
   db.query(query, [userId, bannedUserId], function(err) {
@@ -555,9 +635,12 @@ router.post('/remove-banned-user', (req, res) => {
   });
 });
 
-app.use('/api', router);
+// Ensure server starts only once
+if (require.main === module) {
+  const port = process.env.PORT || 3003;
+  app.listen(port, () => {
+    console.log(`Server is running on port ${port}`);
+  });
+}
 
-// Start server
-app.listen(PORT, () => {
-  console.log(`Server is running on http://localhost:${PORT}`);
-});
+module.exports = app;

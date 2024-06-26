@@ -34,9 +34,9 @@
     <script>
         document.addEventListener('DOMContentLoaded', async () => {
             const userList = document.getElementById('user-list');
-            const usersResponse = await fetch('/users');
+            const usersResponse = await fetch('/api/users');
             const users = await usersResponse.json();
-            const eventsResponse = await fetch('/events');
+            const eventsResponse = await fetch('/api/events');
             const events = await eventsResponse.json();
 
             users.forEach(user => {
@@ -68,7 +68,7 @@
                 addButton.onclick = async () => {
                     const bannedUserId = selectBannedUser.value;
                     if (bannedUserId) {
-                        const response = await fetch('/add-banned-user', {
+                        const response = await fetch('/api/add-banned-user', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({ userId: user.id, bannedUserId: parseInt(bannedUserId) })
@@ -105,7 +105,7 @@
 
                 eventSelect.onchange = async () => {
                     const eventId = eventSelect.value;
-                    const listsResponse = await fetch(`/event-rounds/${eventId}`);
+                    const listsResponse = await fetch(`/api/event-rounds/${eventId}`);
                     const lists = await listsResponse.json();
 
                     listSelect.innerHTML = '';
@@ -128,7 +128,7 @@
                     const bannedUserId = selectBannedUser.value;
                     const listId = listSelect.value;
                     if (bannedUserId && listId) {
-                        const response = await fetch('/add-list-banned-user', {
+                        const response = await fetch('/api/add-list-banned-user', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({ userId: user.id, bannedUserId: parseInt(bannedUserId), listId: parseInt(listId) })
@@ -180,7 +180,7 @@
         });
 
         async function loadBannedUsers(userId, userContainer) {
-            const bannedUsersResponse = await fetch(`/banned-users/${userId}`);
+            const bannedUsersResponse = await fetch(`/api/banned-users/${userId}`);
             const bannedUsers = await bannedUsersResponse.json();
             const bannedUsersList = userContainer.querySelector('.banned-users ul');
             bannedUsersList.innerHTML = '';
@@ -192,7 +192,7 @@
                 const removeButton = document.createElement('button');
                 removeButton.textContent = 'Remove';
                 removeButton.onclick = async () => {
-                    const response = await fetch('/remove-banned-user', {
+                    const response = await fetch('/api/remove-banned-user', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ userId, bannedUserId: bannedUser.id })
@@ -209,7 +209,7 @@
                 bannedUsersList.appendChild(listItem);
             });
 
-            const bannedListUsersResponse = await fetch(`/list-banned-users/${userId}`);
+            const bannedListUsersResponse = await fetch(`/api/list-banned-users/${userId}`);
             const bannedListUsers = await bannedListUsersResponse.json();
             const bannedListUsersList = userContainer.querySelector('.banned-list-users ul');
             bannedListUsersList.innerHTML = '';
@@ -221,7 +221,7 @@
                 const removeButton = document.createElement('button');
                 removeButton.textContent = 'Remove';
                 removeButton.onclick = async () => {
-                    const response = await fetch('/remove-list-banned-user', {
+                    const response = await fetch('/api/remove-list-banned-user', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ userId, bannedUserId: bannedListUser.id, listId: bannedListUser.listId })

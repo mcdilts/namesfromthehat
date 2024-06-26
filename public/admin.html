@@ -3,50 +3,78 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Admin Page</title>
-  <style>
-    body {
-      font-family: Arial, sans-serif;
+  <title>Add User</title>
+  <script>
+    async function fetchUsers() {
+      const response = await fetch('/api/users');
+      const users = await response.json();
+      const userList = document.getElementById('user-list');
+      userList.innerHTML = '';
+      users.forEach(user => {
+        const listItem = document.createElement('li');
+        listItem.textContent = `${user.username} (ID: ${user.id})`;
+        const deleteButton = document.createElement('button');
+        deleteButton.textContent = 'Delete';
+        deleteButton.onclick = () => deleteUser(user.id);
+        listItem.appendChild(deleteButton);
+        userList.appendChild(listItem);
+      });
     }
-    .admin-container {
-      width: 80%;
-      margin: 0 auto;
-      padding: 20px;
+
+    async function handleAddUser(event) {
+      event.preventDefault();
+      const username = document.getElementById('username').value;
+      const password = document.getElementById('password').value;
+
+      const response = await fetch('/api/add-user', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ username, password, banned_users: '' }),
+      });
+
+      if (response.ok) {
+        alert('User added successfully');
+        fetchUsers();
+      } else {
+        alert('Error adding user');
+      }
     }
-    .admin-header {
-      text-align: center;
+
+    async function deleteUser(userId) {
+      console.log(`Attempting to delete user with ID: ${userId}`);
+      const response = await fetch(`/api/delete-user/${userId}`, {
+        method: 'DELETE',
+      });
+
+      if (response.ok) {
+        alert('User deleted successfully');
+        fetchUsers();
+      } else {
+        alert('Error deleting user');
+      }
     }
-    .admin-menu {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      margin-top: 20px;
-    }
-    .admin-menu a {
-      text-decoration: none;
-      color: white;
-      background-color: #007BFF;
-      padding: 10px 20px;
-      border-radius: 5px;
-      margin: 5px;
-      width: 200px;
-      text-align: center;
-    }
-    .admin-menu a:hover {
-      background-color: #0056b3;
-    }
-  </style>
+
+    document.addEventListener('DOMContentLoaded', () => {
+      fetchUsers();
+      document.getElementById('add-user-form').addEventListener('submit', handleAddUser);
+    });
+  </script>
 </head>
 <body>
-  <div class="admin-container">
-    <div class="admin-header">
-      <h1>Admin Page</h1>
-    </div>
-    <div class="admin-menu">
-      <a href="/event-management">Event Management</a>
-      <a href="/user-management">User Management</a>
-      <a href="/selection-round-list">Selection Round List</a>
-    </div>
-  </div>
+  <h1>Add User</h1>
+  <a href="/admin">Back to Admin</a>
+  <form id="add-user-form">
+    <input type="text" id="username" placeholder="Username" required>
+    <input type="password" id="password" placeholder="Password" required>
+    <button type="submit">Add User</button>
+  </form>
+  <h2>Current Users</h2>
+  <ul id="user-list"></ul>
+  <h3>Admin Links</h3>
+    <a href="/user-management">User Management</a>
+    <a href="/event-management">Event Management</a>
+    <a href="/admin">Admin</a>
 </body>
 </html>
