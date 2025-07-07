@@ -300,6 +300,49 @@ app.get('/api/banned-users-for-list/:listId', checkSession, (req, res) => {
   });
 });
 
+/* ---------- user-admin routes ---------- */
+// 1.  List all users
+app.get('/api/users', checkSession, (req, res) => {
+  pool.query('SELECT id, username FROM Users ORDER BY username', (err, rows) => {
+    if (err) {
+      console.error('Failed to fetch users:', err);
+      return res.status(500).json({ message: 'Could not fetch users' });
+    }
+    res.json(rows);
+  });
+});
+
+// 2.  Add a user  { username, password }
+app.post('/api/users', checkSession, (req, res) => {
+  const { username, password } = req.body || {};
+  if (!username || !password) {
+    return res.status(400).json({ message: 'username and password required' });
+  }
+  pool.query(
+    'INSERT INTO Users (username, password) VALUES (?, ?)',
+    [username, password],
+    (err, result) => {
+      if (err) {
+        console.error('Failed to create user:', err);
+        return res.status(500).json({ message: 'Could not create user' });
+      }
+      res.json({ id: result.insertId, username });
+    }
+  );
+});
+
+// 3.  Delete a user  /api/users/7
+app.delete('/api/users/:id', checkSession, (req, res) => {
+  const { id } = req.params;
+  pool.query('DELETE FROM Users WHERE id = ?', [id], (err) => {
+    if (err) {
+      console.error('Failed to delete user:', err);
+      return res.status(500).json({ message: 'Could not delete user' });
+    }
+    res.json({ message: 'User removed' });
+  });
+});
+
 // Fetch user's events and given users
 app.get('/api/user-events', checkSession, (req, res) => {
   const userId = req.session.userId;
