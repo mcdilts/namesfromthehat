@@ -17,6 +17,7 @@
     "express": "^4.19.2",
     "express-mysql-session": "^3.0.2",
     "express-session": "^1.18.0",
+    "lru-cache": "^11.1.0",
     "mysql2": "^3.10.1",
     "sqlite3": "^5.1.7",
     "vercel": "^32.3.0"
